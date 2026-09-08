@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlexiblePDF-Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Lora:ital,wght@0,400;0,700;1,400&family=Merriweather:wght@400;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="sidebar-brand-mark">FX</span>
+      <div>
+        <div class="sidebar-brand-title">FlexiblePDF-Editor</div>
+        <div class="sidebar-brand-sub">Realtime report generator</div>
+      </div>
+    </div>
+
+    <section class="panel">
+      <h2>Document Info</h2>
+      <label class="field">
+        <span>Judul Dokumen</span>
+        <input type="text" id="f-title" value="Demo Auto Audit - Devina - Sales">
+      </label>
+      <label class="field">
+        <span>Generated On</span>
+        <input type="datetime-local" id="f-generated">
+      </label>
+      <label class="field">
+        <span>Model Used</span>
+        <button type="button" class="model-picker-btn" id="model-picker-btn">
+          <span id="model-picker-icon" class="mp-icon"></span>
+          <span id="model-picker-label">Pilih model...</span>
+          <span class="mp-chevron">▾</span>
+        </button>
+        <div class="model-picker-panel" id="model-picker-panel" hidden>
+          <input type="text" id="model-search" placeholder="Cari model...">
+          <div id="model-list" class="model-list"></div>
+          <div id="model-status" class="model-status"></div>
+        </div>
+      </label>
+      <div class="field-row">
+        <label class="field">
+          <span>Tanggal Mulai</span>
+          <input type="datetime-local" id="f-date-start">
+        </label>
+        <label class="field">
+          <span>Tanggal Akhir</span>
+          <input type="datetime-local" id="f-date-end">
+        </label>
+      </div>
+      <label class="field">
+        <span>Type</span>
+        <select id="f-type">
+          <option>Private</option>
+          <option>Public</option>
+          <option>Internal</option>
+          <option value="__custom">Custom...</option>
+        </select>
+      </label>
+      <input type="text" id="f-type-custom" class="field-inline" placeholder="Tulis type..." hidden>
+    </section>
+
+    <section class="panel">
+      <h2>Content (Markdown)</h2>
+      <textarea id="f-markdown" class="markdown-input" spellcheck="false"></textarea>
+      <p class="hint">Halaman terdeteksi otomatis dari panjang konten — lihat &amp; atur ukuran per halaman di panel Layout &amp; Paper.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Typography</h2>
+      <label class="field">
+        <span>Font</span>
+        <select id="f-font">
+          <option value="'Inter', Arial, sans-serif">Inter</option>
+          <option value="'Roboto', Arial, sans-serif">Roboto</option>
+          <option value="'Poppins', Arial, sans-serif">Poppins</option>
+          <option value="'Lora', Georgia, serif">Lora</option>
+          <option value="'Merriweather', Georgia, serif">Merriweather</option>
+          <option value="Arial, Helvetica, sans-serif">Arial (system)</option>
+          <option value="Georgia, 'Times New Roman', serif">Georgia (system)</option>
+          <option value="'Times New Roman', Times, serif">Times New Roman (system)</option>
+          <option value="'Courier New', Courier, monospace">Courier New (system)</option>
+        </select>
+      </label>
+      <div class="field-row">
+        <label class="field">
+          <span>Ukuran Font (pt)</span>
+          <input type="number" id="f-font-size" value="10.5" min="6" max="24" step="0.5">
+        </label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Layout &amp; Paper</h2>
+      <label class="field">
+        <span>Ukuran Kertas Global</span>
+        <select id="f-paper-size">
+          <option value="A4">A4 (21 &times; 29.7 cm)</option>
+          <option value="Letter">Letter (21.59 &times; 27.94 cm)</option>
+          <option value="Legal">Legal (21.59 &times; 35.56 cm)</option>
+          <option value="Custom">Custom...</option>
+        </select>
+      </label>
+      <div class="field-row" id="custom-size-row" hidden>
+        <label class="field">
+          <span>Lebar (cm)</span>
+          <input type="number" id="f-paper-w" value="21" min="5" max="200" step="0.1">
+        </label>
+        <label class="field">
+          <span>Tinggi (cm)</span>
+          <input type="number" id="f-paper-h" value="29.7" min="5" max="200" step="0.1">
+        </label>
+      </div>
+      <label class="field">
+        <span>Orientasi</span>
+        <div class="seg">
+          <button type="button" class="seg-btn active" data-orientation="portrait">Portrait</button>
+          <button type="button" class="seg-btn" data-orientation="landscape">Landscape</button>
+        </div>
+      </label>
+      <label class="field checkbox-field">
+        <input type="checkbox" id="f-margin-link" checked>
+        <span>Kunci semua margin sama</span>
+      </label>
+      <div class="field-row">
+        <label class="field">
+          <span>Margin Atas (cm)</span>
+          <input type="number" id="f-margin-top" value="1.5" min="0" max="10" step="0.1">
+        </label>
+        <label class="field">
+          <span>Margin Kanan (cm)</span>
+          <input type="number" id="f-margin-right" value="1.5" min="0" max="10" step="0.1">
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>Margin Bawah (cm)</span>
+          <input type="number" id="f-margin-bottom" value="1.5" min="0" max="10" step="0.1">
+        </label>
+        <label class="field">
+          <span>Margin Kiri (cm)</span>
+          <input type="number" id="f-margin-left" value="1.5" min="0" max="10" step="0.1">
+        </label>
+      </div>
+      <div id="per-page-overrides" class="per-page-overrides">
+        <h3>Halaman &amp; Ukuran Kertas <span class="hint-inline">(terdeteksi otomatis)</span></h3>
+        <div id="per-page-list"></div>
+      </div>
+    </section>
+
+    <section class="panel actions">
+      <button type="button" id="btn-refresh" class="btn btn-secondary">↻ Refresh Preview</button>
+      <button type="button" id="btn-save-pdf" class="btn btn-primary">⬇ Save to PDF</button>
+      <div id="export-status" class="export-status"></div>
+    </section>
+  </aside>
+
+  <main class="preview-area">
+    <div id="pages"></div>
+  </main>
+</div>
+
+<script src="vendor/html2canvas.min.js"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
