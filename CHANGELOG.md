@@ -1,5 +1,9 @@
 # Changelog
 
+## FlexiblePDF-Editor v1.4
+
+- Fix: documents with an embedded `<svg>` chart (or any block whose height was measured via `offsetTop`, which isn't reliably defined on SVG root elements in every engine) could silently produce a single unpaginated page no matter how long the content was — one `NaN` height from the SVG block poisoned every subsequent running-total addition, which made every later "does this fit the page" comparison evaluate to `false` forever (`NaN > x` is always false), so the page never split and a long table simply overflowed and got clipped. Block height measurement now uses `getBoundingClientRect()`, which works uniformly for both HTML and SVG elements, instead of the `offsetTop` delta.
+
 ## FlexiblePDF-Editor v1.3
 
 - Fix: numeric fields (paper width/height, margins, font size, per-page overrides) no longer re-render on every keystroke. Editing "29.7" into "32.5" by deleting and retyping digits was applying (and briefly falling back to a default) after each character, before the user finished typing. These fields now commit on blur or Enter instead.

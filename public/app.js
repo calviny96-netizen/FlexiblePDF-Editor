@@ -176,7 +176,14 @@ function paginateContent(markdown, headerHTML, footerHTML) {
   measureRoot.innerHTML = bodyHtml;
   const topBlocks = Array.from(measureRoot.children);
   const n = topBlocks.length;
-  const offsetTops = topBlocks.map((b) => b.offsetTop);
+  // getBoundingClientRect (not offsetTop) — offsetTop/offsetParent are
+  // HTMLElement-only in some engines and can be undefined for an <svg> root
+  // block, which turned one NaN height into every subsequent page-budget
+  // comparison silently failing (NaN > x is always false) and produced a
+  // single giant unpaginated page. getBoundingClientRect works uniformly
+  // for both HTML and SVG elements.
+  const rootTop = measureRoot.getBoundingClientRect().top;
+  const offsetTops = topBlocks.map((b) => b.getBoundingClientRect().top - rootTop);
   const totalScrollHeight = measureRoot.scrollHeight;
 
   // Flatten top-level blocks into packable "units". A normal block (heading,
