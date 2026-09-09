@@ -2,18 +2,18 @@
 // Supports exactly the subset used by the reference report template:
 // headings (#, ##, ###), bold **x**, italic *x*/_x_, inline code `x`,
 // links [text](url), unordered/ordered lists, GFM pipe tables, horizontal
-// rules (---), and paragraphs. Anything else passes through as plain text.
+// rules (---), paragraphs, and — like CommonMark/GFM — raw HTML passthrough
+// (inline tags such as <span>/<a>, and block-level embeds such as <svg>).
 
-function escapeHtml(str) {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+// Block-level tags whose content spans multiple lines and must be captured
+// as one raw chunk (not chopped into "paragraph" lines and escaped).
+const HTML_BLOCK_TAGS = /^(div|svg|table|ul|ol|dl|blockquote|section|article|header|footer|nav|aside|figure|form|pre|iframe|video|picture|style|details|summary)$/i;
 
 function renderInline(raw) {
-  let text = escapeHtml(raw);
+  // Raw HTML (e.g. <span style="...">, <a href="...">, <tspan>) is passed
+  // through untouched, same as real Markdown does — it is not something
+  // this app generates, so escaping it would just break the author's intent.
+  let text = raw;
 
   // Inline code first so its contents are never re-processed.
   text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -157,6 +157,27 @@ export function renderMarkdown(source) {
       continue;
     }
 
+    // Raw HTML block (e.g. a hand-authored <svg> chart): capture verbatim,
+    // tracking this specific tag's open/close balance so nested elements
+    // inside it (rect, g, tspan, ...) don't confuse the boundary.
+    const htmlBlockMatch = /^<([a-zA-Z][a-zA-Z0-9]*)\b/.exec(trimmed);
+    if (htmlBlockMatch && HTML_BLOCK_TAGS.test(htmlBlockMatch[1])) {
+      const tag = htmlBlockMatch[1];
+      const openRe = new RegExp(`<${tag}\\b`, 'gi');
+      const closeRe = new RegExp(`</${tag}>`, 'gi');
+      const htmlLines = [line];
+      let depth = (trimmed.match(openRe) || []).length - (trimmed.match(closeRe) || []).length;
+      let j = i + 1;
+      while (depth > 0 && j < lines.length) {
+        htmlLines.push(lines[j]);
+        depth += (lines[j].match(openRe) || []).length - (lines[j].match(closeRe) || []).length;
+        j++;
+      }
+      out.push(htmlLines.join('\n'));
+      i = j;
+      continue;
+    }
+
     // Paragraph: gather consecutive non-blank, non-special lines
     const paraLines = [];
     while (
@@ -184,6 +205,7 @@ export function renderMarkdown(source) {
 export function countWords(source) {
   const plain = (source || '')
     .replace(/<!--page-->/gi, ' ')
+    .replace(/<[^>]+>/g, ' ') // strip raw HTML/SVG tags (and their attributes) before counting
     .replace(/[#*_`>|-]/g, ' ')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .trim();

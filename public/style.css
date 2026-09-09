@@ -12,6 +12,13 @@
   --danger: #DC2626;
   --radius: 10px;
   --sidebar-w: 340px;
+
+  /* Litepicker theme overrides — match the app's accent blue */
+  --litepicker-is-start-color-bg: #2563EB;
+  --litepicker-is-end-color-bg: #2563EB;
+  --litepicker-is-in-range-color: #EEF2FF;
+  --litepicker-button-apply-color-bg: #2563EB;
+  --litepicker-is-today-color: #2563EB;
 }
 
 * { box-sizing: border-box; }
@@ -197,6 +204,21 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
 .model-row.selected { background: var(--accent-soft); font-weight: 600; }
 .model-status { font-size: 11px; color: var(--text-faint); padding: 4px 6px 0; }
 
+/* Date range picker */
+.date-range-presets { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+.preset-btn {
+  font-size: 10.5px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.preset-btn:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.preset-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+#f-date-range { cursor: pointer; background: #fff; }
+
 /* Per-page override rows */
 .per-page-overrides { margin-top: 14px; }
 .per-page-overrides .hint-inline { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-faint); }
@@ -306,6 +328,8 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
 .doc-body li { margin-bottom: .3em; }
 .doc-body blockquote { margin: 0 0 .8em; padding-left: .9em; border-left: 3px solid #D8DAE0; color: var(--text-muted); }
 .doc-body code { background: #F1F2F5; padding: .1em .35em; border-radius: 4px; font-size: .92em; }
+.doc-body svg, .doc-body img { max-width: 100%; height: auto; display: block; margin: 0 0 .8em; }
+.doc-body table { max-width: 100%; }
 
 .md-table { width: 100%; border-collapse: collapse; margin: .3em 0 1em; font-size: .94em; }
 .md-table th, .md-table td { border: 1px solid #E1E3E8; padding: 6px 9px; text-align: left; vertical-align: top; }

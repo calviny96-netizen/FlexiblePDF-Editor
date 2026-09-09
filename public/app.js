@@ -43,12 +43,15 @@ Halaman terdeteksi otomatis dari panjang konten — tambahkan teks di bawah ini 
 
 Edit teks ini langsung di panel kiri — semua perubahan tampil realtime di sini.`;
 
+function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+function endOfDay(d) { const x = new Date(d); x.setHours(23, 59, 0, 0); return x; }
+
 const state = {
   title: 'Demo Auto Audit - Devina - Sales',
   generatedAt: new Date(),
   modelId: null,
-  dateStart: new Date(),
-  dateEnd: new Date(Date.now() + 7 * 86400000),
+  dateStart: startOfDay(new Date(Date.now() - 6 * 86400000)),
+  dateEnd: endOfDay(new Date()),
   type: 'Private',
   markdown: DEFAULT_MARKDOWN,
   fontFamily: "'Inter', Arial, sans-serif",
@@ -442,13 +445,68 @@ function renderModelList(filter) {
   });
 }
 
+// ---------- date range picker ----------
+
+let dateRangePicker = null;
+
+function applyDateRange(start, end) {
+  state.dateStart = startOfDay(start);
+  state.dateEnd = endOfDay(end);
+  if (dateRangePicker) dateRangePicker.setDateRange(state.dateStart, state.dateEnd, true);
+  document.querySelectorAll('.preset-btn').forEach((b) => b.classList.remove('active'));
+  scheduleRender();
+}
+
+function initDateRangePicker() {
+  dateRangePicker = new window.Litepicker({
+    element: $('f-date-range'),
+    singleMode: false,
+    numberOfMonths: 2,
+    numberOfColumns: 2,
+    format: 'DD MMM YYYY',
+    startDate: state.dateStart,
+    endDate: state.dateEnd,
+    setup: (picker) => {
+      picker.on('selected', (date1, date2) => {
+        document.querySelectorAll('.preset-btn').forEach((b) => b.classList.remove('active'));
+        state.dateStart = startOfDay(date1.dateInstance);
+        state.dateEnd = endOfDay(date2.dateInstance);
+        scheduleRender();
+      });
+    },
+  });
+
+  const today = () => new Date();
+  const presets = {
+    today: () => { const t = today(); return [t, t]; },
+    yesterday: () => { const y = new Date(Date.now() - 86400000); return [y, y]; },
+    last7: () => [new Date(Date.now() - 6 * 86400000), today()],
+    last30: () => [new Date(Date.now() - 29 * 86400000), today()],
+    thisMonth: () => {
+      const t = today();
+      return [new Date(t.getFullYear(), t.getMonth(), 1), new Date(t.getFullYear(), t.getMonth() + 1, 0)];
+    },
+    lastMonth: () => {
+      const t = today();
+      return [new Date(t.getFullYear(), t.getMonth() - 1, 1), new Date(t.getFullYear(), t.getMonth(), 0)];
+    },
+  };
+
+  document.querySelectorAll('.preset-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const [start, end] = presets[btn.dataset.preset]();
+      applyDateRange(start, end);
+      document.querySelectorAll('.preset-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+}
+
 // ---------- wiring ----------
 
 function bind() {
   $('f-title').value = state.title;
   $('f-generated').value = toLocalInputValue(state.generatedAt);
-  $('f-date-start').value = toLocalInputValue(state.dateStart);
-  $('f-date-end').value = toLocalInputValue(state.dateEnd);
   $('f-markdown').value = state.markdown;
   $('f-font').value = state.fontFamily;
   $('f-font-size').value = state.fontSizePt;
@@ -462,8 +520,8 @@ function bind() {
 
   $('f-title').addEventListener('input', (e) => { state.title = e.target.value; scheduleRender(); });
   $('f-generated').addEventListener('input', (e) => { state.generatedAt = fromLocalInputValue(e.target.value, state.generatedAt); scheduleRender(); });
-  $('f-date-start').addEventListener('input', (e) => { state.dateStart = fromLocalInputValue(e.target.value, state.dateStart); scheduleRender(); });
-  $('f-date-end').addEventListener('input', (e) => { state.dateEnd = fromLocalInputValue(e.target.value, state.dateEnd); scheduleRender(); });
+
+  initDateRangePicker();
 
   $('f-type').addEventListener('change', (e) => {
     const custom = $('f-type-custom');

@@ -31,7 +31,7 @@ FlexiblePDF-Editor adalah aplikasi web ringan untuk membantu membuat dan mengelo
 3. Buka alamat yang ditampilkan server di browser. Jika tidak ada pesan khusus, coba:
 
    ```text
-   http://localhost:3000
+   http://localhost:4310
    ```
 
 ## Struktur proyek
@@ -43,4 +43,4 @@ FlexiblePDF-Editor adalah aplikasi web ringan untuk membantu membuat dan mengelo
 
 ## Versi
 
-Versi saat ini: **FlexiblePDF-Editor v1.0**
+Versi saat ini: **FlexiblePDF-Editor v1.1**

@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Lora:ital,wght@0,400;0,700;1,400&family=Merriweather:wght@400;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vendor/litepicker.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -43,16 +44,18 @@
           <div id="model-status" class="model-status"></div>
         </div>
       </label>
-      <div class="field-row">
-        <label class="field">
-          <span>Tanggal Mulai</span>
-          <input type="datetime-local" id="f-date-start">
-        </label>
-        <label class="field">
-          <span>Tanggal Akhir</span>
-          <input type="datetime-local" id="f-date-end">
-        </label>
-      </div>
+      <label class="field">
+        <span>Periode (Tanggal Mulai &ndash; Akhir)</span>
+        <div class="date-range-presets">
+          <button type="button" class="preset-btn" data-preset="today">Today</button>
+          <button type="button" class="preset-btn" data-preset="yesterday">Yesterday</button>
+          <button type="button" class="preset-btn" data-preset="last7">Last 7 Days</button>
+          <button type="button" class="preset-btn" data-preset="last30">Last 30 Days</button>
+          <button type="button" class="preset-btn" data-preset="thisMonth">This Month</button>
+          <button type="button" class="preset-btn" data-preset="lastMonth">Last Month</button>
+        </div>
+        <input type="text" id="f-date-range" readonly placeholder="Pilih rentang tanggal...">
+      </label>
       <label class="field">
         <span>Type</span>
         <select id="f-type">
@@ -167,6 +170,7 @@
 
 <script src="vendor/html2canvas.min.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/litepicker.js"></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>
