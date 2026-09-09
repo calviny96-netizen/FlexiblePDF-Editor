@@ -164,33 +164,84 @@ function paginateContent(markdown, headerHTML, footerHTML) {
   const footerHpx = measureRoot.scrollHeight;
 
   measureRoot.innerHTML = bodyHtml;
-  const blocks = Array.from(measureRoot.children);
-  const n = blocks.length;
-  const offsetTops = blocks.map((b) => b.offsetTop);
+  const topBlocks = Array.from(measureRoot.children);
+  const n = topBlocks.length;
+  const offsetTops = topBlocks.map((b) => b.offsetTop);
   const totalScrollHeight = measureRoot.scrollHeight;
-  const blockHeights = blocks.map((b, i) => (i + 1 < n ? offsetTops[i + 1] : totalScrollHeight) - offsetTops[i]);
-  const blockHtmls = blocks.map((b) => b.outerHTML);
+
+  // Flatten top-level blocks into packable "units". A normal block (heading,
+  // paragraph, list, ...) is one unit. A table with body rows is split into
+  // one unit per row so it can continue across a page break — each
+  // continuation re-opens a fresh <table> with the same <thead> repeated,
+  // like a real document engine, instead of the whole table jumping intact
+  // to the next page (which is what produced near-blank pages before).
+  const units = [];
+  topBlocks.forEach((el, i) => {
+    const blockHeight = (i + 1 < n ? offsetTops[i + 1] : totalScrollHeight) - offsetTops[i];
+    const rows = el.tagName === 'TABLE' ? Array.from(el.querySelectorAll(':scope > tbody > tr')) : [];
+    if (el.tagName === 'TABLE' && rows.length > 0) {
+      const thead = el.querySelector(':scope > thead');
+      const theadHtml = thead ? thead.outerHTML : '';
+      const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
+      rows.forEach((tr) => {
+        units.push({ kind: 'row', html: tr.outerHTML, height: tr.getBoundingClientRect().height, theadHtml, theadHeight });
+      });
+    } else {
+      units.push({ kind: 'block', html: el.outerHTML, height: blockHeight, isHeading: /^H[1-6]$/.test(el.tagName) });
+    }
+  });
 
   document.body.removeChild(measureRoot);
 
   const chunks = [];
-  let pageIdx = 0;
   let current = [];
   let usedPx = 0;
+  let tableOpenOnPage = false;
   let budget = pageBudgetPx(0, headerHpx, footerHpx);
 
-  for (let i = 0; i < n; i++) {
-    const h = blockHeights[i];
-    if (current.length > 0 && usedPx + h > budget) {
-      chunks.push(current);
-      pageIdx++;
-      current = [];
-      usedPx = 0;
-      budget = pageBudgetPx(pageIdx, headerHpx, footerHpx);
-    }
-    current.push(blockHtmls[i]);
-    usedPx += h;
+  function closePage() {
+    if (tableOpenOnPage) current.push('</tbody></table>');
+    chunks.push(current);
+    current = [];
+    usedPx = 0;
+    tableOpenOnPage = false;
+    budget = pageBudgetPx(chunks.length, headerHpx, footerHpx);
   }
+
+  for (let i = 0; i < units.length; i++) {
+    const u = units[i];
+
+    if (u.kind === 'row') {
+      const openCost = tableOpenOnPage ? 0 : u.theadHeight;
+      if (current.length > 0 && usedPx + openCost + u.height > budget) closePage();
+      if (!tableOpenOnPage) {
+        current.push(`<table class="md-table">${u.theadHtml}<tbody>`);
+        usedPx += u.theadHeight;
+        tableOpenOnPage = true;
+      }
+      current.push(u.html);
+      usedPx += u.height;
+      continue;
+    }
+
+    if (tableOpenOnPage) {
+      current.push('</tbody></table>');
+      tableOpenOnPage = false;
+    }
+
+    // Orphan guard: don't strand a heading alone (or near-alone) at the
+    // bottom of a page with nothing of what follows it — require a little
+    // of the next unit to fit alongside it, else push the heading forward too.
+    let lookahead = 0;
+    const next = units[i + 1];
+    if (u.isHeading && next) {
+      lookahead = next.kind === 'row' ? next.theadHeight + next.height : Math.min(next.height, 60);
+    }
+    if (current.length > 0 && usedPx + u.height + lookahead > budget) closePage();
+    current.push(u.html);
+    usedPx += u.height;
+  }
+  if (tableOpenOnPage) current.push('</tbody></table>');
   chunks.push(current);
 
   return chunks.map((blockList, idx) => {

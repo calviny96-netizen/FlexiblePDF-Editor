@@ -1,5 +1,10 @@
 # Changelog
 
+## FlexiblePDF-Editor v1.2
+
+- Fix: long tables no longer jump to the next page as one indivisible block (which produced near-blank pages and stranded headings). Tables now split at row boundaries, repeating the header row on each continuation page, the way a real document editor paginates a table.
+- Fix: headings are no longer left orphaned alone (or nearly alone) at the bottom of a page — pagination now checks that at least some of the heading's following content fits alongside it, pushing the heading forward to the next page otherwise.
+
 ## FlexiblePDF-Editor v1.1
 
 - Fix: Markdown renderer now supports raw HTML passthrough (inline `<span>`/`<a>` and block-level `<svg>`/`<div>`/`<table>` embeds), matching CommonMark/GFM behavior. Previously all HTML was escaped, so embedded SVG charts and styled badges rendered as literal text instead of graphics.
