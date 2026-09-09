@@ -43,4 +43,4 @@ FlexiblePDF-Editor adalah aplikasi web ringan untuk membantu membuat dan mengelo
 
 ## Versi
 
-Versi saat ini: **FlexiblePDF-Editor v1.2**
+Versi saat ini: **FlexiblePDF-Editor v1.3**

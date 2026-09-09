@@ -97,6 +97,16 @@ function formatGenerated(date) {
   return `${pad(date.getDate())} ${MONTHS_FULL[date.getMonth()]} ${date.getFullYear()}, ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+// Numeric fields (paper size, margins, font size) commit on blur/Enter
+// rather than on every keystroke — otherwise editing "29.7" into "32.5" by
+// deleting and retyping digits re-renders (and briefly falls back to a
+// default) after every single character, before the user is done typing.
+function commitOnEnter(el) {
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') el.blur();
+  });
+}
+
 function slugify(str) {
   return (str || 'document')
     .toLowerCase()
@@ -407,24 +417,24 @@ function renderPerPageOverridesUI(pageCount) {
     state.pageOverrides[Number(e.target.dataset.idx)].orientation = e.target.value;
     scheduleRender();
   }));
-  list.querySelectorAll('.ov-w').forEach((el) => el.addEventListener('input', (e) => {
+  list.querySelectorAll('.ov-w').forEach((el) => { commitOnEnter(el); el.addEventListener('change', (e) => {
     state.pageOverrides[Number(e.target.dataset.idx)].paperW = Number(e.target.value) || 0;
     scheduleRender();
-  }));
-  list.querySelectorAll('.ov-h').forEach((el) => el.addEventListener('input', (e) => {
+  }); });
+  list.querySelectorAll('.ov-h').forEach((el) => { commitOnEnter(el); el.addEventListener('change', (e) => {
     state.pageOverrides[Number(e.target.dataset.idx)].paperH = Number(e.target.value) || 0;
     scheduleRender();
-  }));
-  list.querySelectorAll('.ov-mtb').forEach((el) => el.addEventListener('input', (e) => {
+  }); });
+  list.querySelectorAll('.ov-mtb').forEach((el) => { commitOnEnter(el); el.addEventListener('change', (e) => {
     const ov = state.pageOverrides[Number(e.target.dataset.idx)];
     ov.marginTop = ov.marginBottom = Number(e.target.value) || 0;
     scheduleRender();
-  }));
-  list.querySelectorAll('.ov-mlr').forEach((el) => el.addEventListener('input', (e) => {
+  }); });
+  list.querySelectorAll('.ov-mlr').forEach((el) => { commitOnEnter(el); el.addEventListener('change', (e) => {
     const ov = state.pageOverrides[Number(e.target.dataset.idx)];
     ov.marginLeft = ov.marginRight = Number(e.target.value) || 0;
     scheduleRender();
-  }));
+  }); });
 }
 
 // ---------- model picker ----------
@@ -590,15 +600,18 @@ function bind() {
   $('f-markdown').addEventListener('input', (e) => { state.markdown = e.target.value; scheduleRender(); });
 
   $('f-font').addEventListener('change', (e) => { state.fontFamily = e.target.value; scheduleRender(); });
-  $('f-font-size').addEventListener('input', (e) => { state.fontSizePt = Number(e.target.value) || 10.5; scheduleRender(); });
+  commitOnEnter($('f-font-size'));
+  $('f-font-size').addEventListener('change', (e) => { state.fontSizePt = Number(e.target.value) || 10.5; scheduleRender(); });
 
   $('f-paper-size').addEventListener('change', (e) => {
     state.paperSize = e.target.value;
     $('custom-size-row').hidden = e.target.value !== 'Custom';
     scheduleRender();
   });
-  $('f-paper-w').addEventListener('input', (e) => { state.paperW = Number(e.target.value) || 21; scheduleRender(); });
-  $('f-paper-h').addEventListener('input', (e) => { state.paperH = Number(e.target.value) || 29.7; scheduleRender(); });
+  commitOnEnter($('f-paper-w'));
+  commitOnEnter($('f-paper-h'));
+  $('f-paper-w').addEventListener('change', (e) => { state.paperW = Number(e.target.value) || 21; scheduleRender(); });
+  $('f-paper-h').addEventListener('change', (e) => { state.paperH = Number(e.target.value) || 29.7; scheduleRender(); });
 
   document.querySelectorAll('.seg-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -612,7 +625,8 @@ function bind() {
   const marginIds = ['f-margin-top', 'f-margin-right', 'f-margin-bottom', 'f-margin-left'];
   const marginKeys = ['marginTop', 'marginRight', 'marginBottom', 'marginLeft'];
   marginIds.forEach((id, i) => {
-    $(id).addEventListener('input', (e) => {
+    commitOnEnter($(id));
+    $(id).addEventListener('change', (e) => {
       const val = Number(e.target.value) || 0;
       if (state.marginLinked) {
         marginKeys.forEach((k) => { state[k] = val; });
@@ -662,14 +676,19 @@ async function exportPdf() {
       const eff = effectiveSettingsForPage(i);
       const [pw, ph] = paperDims(eff.paperSize, eff.paperW, eff.paperH, eff.orientation);
       const orientationParam = pw > ph ? 'l' : 'p';
-      const canvas = await window.html2canvas(sheets[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const img = canvas.toDataURL('image/png');
+      // scale 1.5 (not 2) + JPEG (not PNG): PNG at scale 2 was producing
+      // enormous files once multiplied across many pages (the reported
+      // "hundreds of MB" bug) — 1.5 is 44% fewer pixels than 2 while still
+      // sharp for a document page, and JPEG compresses gradient/chart
+      // content far better than lossless PNG.
+      const canvas = await window.html2canvas(sheets[i], { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
+      const img = canvas.toDataURL('image/jpeg', 0.85);
       if (!doc) {
-        doc = new jsPDF({ unit: 'cm', format: [pw, ph], orientation: orientationParam });
+        doc = new jsPDF({ unit: 'cm', format: [pw, ph], orientation: orientationParam, compress: true });
       } else {
         doc.addPage([pw, ph], orientationParam);
       }
-      doc.addImage(img, 'PNG', 0, 0, pw, ph);
+      doc.addImage(img, 'JPEG', 0, 0, pw, ph, undefined, 'MEDIUM');
     }
     doc.save(filename);
     status.textContent = 'PDF tersimpan: ' + filename;

@@ -1,5 +1,11 @@
 # Changelog
 
+## FlexiblePDF-Editor v1.3
+
+- Fix: numeric fields (paper width/height, margins, font size, per-page overrides) no longer re-render on every keystroke. Editing "29.7" into "32.5" by deleting and retyping digits was applying (and briefly falling back to a default) after each character, before the user finished typing. These fields now commit on blur or Enter instead.
+- Fix: the 20px gap between page previews wasn't actually being applied — it was set on `.preview-area`, whose only direct child is the `#pages` wrapper, not the individual page sheets, so the flex `gap` had no visible effect. Moved it to `#pages` where the page sheets actually live.
+- Fix: exported PDF file size was excessive (reported up to hundreds of MB for many-page documents). Page rasterization now uses JPEG instead of lossless PNG and a 1.5x scale instead of 2x, cutting file size by roughly 2-3x in testing with no meaningful loss of legibility.
+
 ## FlexiblePDF-Editor v1.2
 
 - Fix: long tables no longer jump to the next page as one indivisible block (which produced near-blank pages and stranded headings). Tables now split at row boundaries, repeating the header row on each continuation page, the way a real document editor paginates a table.
