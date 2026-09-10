@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { computeMultiplier, estimateTokens, regionalTokenFactor } from '../public/models.js';
+for (const id of ['deepseek/chat', 'qwen/qwen-max', 'z-ai/glm', 'moonshotai/kimi', 'minimax/m2', 'inclusionai/ling', 'baidu/ernie', 'bytedance-seed/seed', 'tencent/hunyuan', 'stepfun/step']) assert.equal(regionalTokenFactor(id), 3, id);
+for (const id of ['anthropic/claude', 'openai/gpt', 'google/gemini', 'x-ai/grok', 'meta-llama/llama', 'nvidia/nemotron', 'microsoft/phi', 'amazon/nova']) assert.equal(regionalTokenFactor(id), 9, id);
+assert.equal(computeMultiplier('deepseek/chat'), 3.6);
+assert.equal(computeMultiplier('qwen/qwen-max'), 4.05);
+assert.equal(computeMultiplier('openai/gpt'), 11.7);
+assert.equal(computeMultiplier('anthropic/claude-haiku'), 10.35);
+assert.equal(estimateTokens(100, 'deepseek/chat'), 360);
+assert.equal(estimateTokens(100, 'openai/gpt'), 1170);
+assert.equal(estimateTokens(0, 'openai/gpt'), 0);
+assert.equal(regionalTokenFactor('unknown/model'), 1);
+assert.equal(regionalTokenFactor('mistralai/mistral'), 1);
+assert.equal(regionalTokenFactor('OPENAI/GPT'), 9);
+console.log('Token region and multiplier tests passed');

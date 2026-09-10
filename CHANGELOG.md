@@ -1,5 +1,14 @@
 # Changelog
 
+## FlexiblePDF-Editor V2.0
+
+- Fix table pagination using actual destination-page layout; preserve table styles, columns and repeated headers.
+- Add automatic column widths and visible live column drag handles across table rows.
+- Add editable token field with automatic calculation/reset, China +200% and America +800% adjustments.
+- Add optional footer, disabled by default.
+- Add custom logo upload and default-logo reset with proportional fitting for square and wide images.
+- Add browser pagination regressions and token calculation tests.
+
 ## FlexiblePDF-Editor v1.4
 
 - Fix: documents with an embedded `<svg>` chart (or any block whose height was measured via `offsetTop`, which isn't reliably defined on SVG root elements in every engine) could silently produce a single unpaginated page no matter how long the content was — one `NaN` height from the SVG block poisoned every subsequent running-total addition, which made every later "does this fit the page" comparison evaluate to `false` forever (`NaN > x` is always false), so the page never split and a long table simply overflowed and got clipped. Block height measurement now uses `getBoundingClientRect()`, which works uniformly for both HTML and SVG elements, instead of the `offsetTop` delta.

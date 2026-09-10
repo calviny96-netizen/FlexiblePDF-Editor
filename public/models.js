@@ -58,13 +58,35 @@ export function providerIconHtml(key) {
 const FLAGSHIP_RE = /(opus|ultra|max\b|[- ]pro\b|large|plus|v4|405b|235b)/i;
 const LITE_RE = /(mini|flash|lite|small|turbo|haiku|nano|7b|8b|1b|3b)/i;
 
+// Regional adjustments apply after the existing model-size heuristic.
+// +200% = 3x; +800% = 9x. Unmapped regions retain their existing estimate.
+const REGION_PROVIDERS = {
+  china: new Set(['deepseek', 'qwen', 'glm', 'kimi', 'minimax']),
+  america: new Set(['claude', 'gpt', 'gemini', 'grok']),
+};
+const REGION_PREFIXES = {
+  china: new Set(['deepseek', 'qwen', 'alibaba', 'alibaba-cn', 'z-ai', 'zhipu', 'moonshotai', 'moonshotai-cn', 'minimax', 'baidu', 'bytedance', 'bytedance-seed', 'tencent', 'thudm', '01-ai', 'inclusionai', 'meituan', 'stepfun', 'stepfun-ai', 'xiaomi']),
+  america: new Set(['anthropic', 'openai', 'google', 'x-ai', 'meta-llama', 'nvidia', 'microsoft', 'amazon', 'allenai', 'perplexity', 'nousresearch', 'cognitivecomputations', 'arcee-ai', 'deepcogito', 'morph', 'inflection', 'ibm-granite']),
+};
+export function regionalTokenFactor(modelId) {
+  const prefix = (modelId || '').toLowerCase().split('/')[0];
+  const provider = detectProvider(modelId);
+  for (const [region, factor] of [['china', 3], ['america', 9]]) {
+    if (REGION_PREFIXES[region].has(prefix)) return factor;
+  }
+  for (const [region, factor] of [['china', 3], ['america', 9]]) {
+    if (REGION_PROVIDERS[region].has(provider)) return factor;
+  }
+  return 1;
+}
+
 export function computeMultiplier(modelId) {
   const provider = detectProvider(modelId);
   let mult = providerMeta(provider).base;
   const id = modelId || '';
   if (FLAGSHIP_RE.test(id)) mult += 0.15;
   else if (LITE_RE.test(id)) mult -= 0.15;
-  return Math.max(1.05, Math.min(1.5, Math.round(mult * 100) / 100));
+  return Math.round(Math.max(1.05, Math.min(1.5, Math.round(mult * 100) / 100)) * regionalTokenFactor(modelId) * 100) / 100;
 }
 
 export function estimateTokens(wordCount, modelId) {

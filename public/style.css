@@ -353,3 +353,37 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
   .app { flex-direction: column; }
   .sidebar { position: relative; width: 100%; flex: none; height: auto; }
 }
+
+/* Use identical flow boundaries for measurement and preview. */
+.doc-body, .page-content { display: flow-root; }
+.doc-body table th, .doc-body table td {
+  position: relative;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.column-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 2;
+}
+.column-resizer:hover, .column-resizer:focus { background: #2563eb80; outline: none; }
+.resizing-columns, .resizing-columns * { cursor: col-resize !important; user-select: none !important; }
+@media print { .column-resizer { display: none; } }
+.token-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 0 16px; }
+.token-controls small { color: var(--text-muted); }
+.token-controls button { border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px; background: white; cursor: pointer; }
+.token-controls button:disabled { opacity: .45; cursor: default; }
+.table-edit-hint { color: #526078; font-size: 12px; text-align: center; }
+.column-resizer { right: -5px; width: 10px; }
+.column-resizer-header::after { content: ''; position: absolute; top: 4px; bottom: 4px; left: 4px; width: 2px; background: #3b82f6; border-radius: 2px; }
+.column-resizer:hover::after, .column-resizer:focus::after { width: 3px; background: #1d4ed8; }
+@media print { .table-edit-hint { display: none; } }
+
+/* A fixed logo box stabilizes pagination; contain preserves square/wide ratios. */
+.doc-body .doc-logo img { width: 88px; height: 52px; object-fit: contain; object-position: left center; margin: 0; max-width: 100%; }
+.doc-logo { flex: 0 0 88px; min-height: 52px; margin-right: 16px; }

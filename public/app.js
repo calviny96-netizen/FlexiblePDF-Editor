@@ -1,3 +1,4 @@
+import { paginateHTML, installColumnResizers } from './pagination.js';
 import { renderMarkdown, countWords } from './markdown.js';
 import {
   detectProvider, providerMeta, providerIconHtml, estimateTokens, FALLBACK_MODELS,
@@ -66,6 +67,11 @@ const state = {
   marginLeft: 1.5,
   marginLinked: true,
   pageOverrides: {},
+  columnWidths: {},
+  tokenOverride: null,
+  footerEnabled: false,
+  logoUrl: null,
+  logoSize: [88, 36],
 };
 
 let modelGroups = {}; // providerKey -> [{id,name}]
@@ -144,134 +150,12 @@ function effectiveSettingsForPage(idx) {
 // (per-page overrides), so packing is sequential: page 0 fills up first,
 // then whatever's left flows onto page 1 with *its own* budget, and so on.
 
-function pageBudgetPx(idx, headerHpx, footerHpx) {
-  const eff = effectiveSettingsForPage(idx);
-  const [, ph] = paperDims(eff.paperSize, eff.paperW, eff.paperH, eff.orientation);
-  const contentHcm = ph - eff.marginTop - eff.marginBottom;
-  const contentHpx = contentHcm * CM_TO_PX;
-  // Footer height is conservatively reserved on every page (we don't know
-  // which page will end up last until packing finishes), trading a little
-  // unused space for a guarantee the footer never gets clipped.
-  return contentHpx - (idx === 0 ? headerHpx : 0) - footerHpx;
-}
-
 function paginateContent(markdown, headerHTML, footerHTML) {
-  const fontStyle = `font-family:${state.fontFamily}; font-size:${state.fontSizePt}pt;`;
-  const bodyHtml = renderMarkdown(markdown);
-
-  const eff0 = effectiveSettingsForPage(0);
-  const [pw0] = paperDims(eff0.paperSize, eff0.paperW, eff0.paperH, eff0.orientation);
-  const contentWidthCm = pw0 - eff0.marginLeft - eff0.marginRight;
-
-  const measureRoot = document.createElement('div');
-  measureRoot.className = 'doc-body measure-root';
-  measureRoot.style.cssText = `${fontStyle} position:absolute; left:-99999px; top:0; visibility:hidden; width:${contentWidthCm}cm;`;
-  document.body.appendChild(measureRoot);
-
-  measureRoot.innerHTML = headerHTML;
-  const headerHpx = measureRoot.scrollHeight;
-  measureRoot.innerHTML = footerHTML;
-  const footerHpx = measureRoot.scrollHeight;
-
-  measureRoot.innerHTML = bodyHtml;
-  const topBlocks = Array.from(measureRoot.children);
-  const n = topBlocks.length;
-  // getBoundingClientRect (not offsetTop) — offsetTop/offsetParent are
-  // HTMLElement-only in some engines and can be undefined for an <svg> root
-  // block, which turned one NaN height into every subsequent page-budget
-  // comparison silently failing (NaN > x is always false) and produced a
-  // single giant unpaginated page. getBoundingClientRect works uniformly
-  // for both HTML and SVG elements.
-  const rootTop = measureRoot.getBoundingClientRect().top;
-  const offsetTops = topBlocks.map((b) => b.getBoundingClientRect().top - rootTop);
-  const totalScrollHeight = measureRoot.scrollHeight;
-
-  // Flatten top-level blocks into packable "units". A normal block (heading,
-  // paragraph, list, ...) is one unit. A table with body rows is split into
-  // one unit per row so it can continue across a page break — each
-  // continuation re-opens a fresh <table> with the same <thead> repeated,
-  // like a real document engine, instead of the whole table jumping intact
-  // to the next page (which is what produced near-blank pages before).
-  const units = [];
-  topBlocks.forEach((el, i) => {
-    const blockHeight = (i + 1 < n ? offsetTops[i + 1] : totalScrollHeight) - offsetTops[i];
-    const rows = el.tagName === 'TABLE' ? Array.from(el.querySelectorAll(':scope > tbody > tr')) : [];
-    if (el.tagName === 'TABLE' && rows.length > 0) {
-      const thead = el.querySelector(':scope > thead');
-      const theadHtml = thead ? thead.outerHTML : '';
-      const theadHeight = thead ? thead.getBoundingClientRect().height : 0;
-      rows.forEach((tr) => {
-        units.push({ kind: 'row', html: tr.outerHTML, height: tr.getBoundingClientRect().height, theadHtml, theadHeight });
-      });
-    } else {
-      units.push({ kind: 'block', html: el.outerHTML, height: blockHeight, isHeading: /^H[1-6]$/.test(el.tagName) });
-    }
-  });
-
-  document.body.removeChild(measureRoot);
-
-  const chunks = [];
-  let current = [];
-  let usedPx = 0;
-  let tableOpenOnPage = false;
-  let budget = pageBudgetPx(0, headerHpx, footerHpx);
-
-  function closePage() {
-    if (tableOpenOnPage) current.push('</tbody></table>');
-    chunks.push(current);
-    current = [];
-    usedPx = 0;
-    tableOpenOnPage = false;
-    budget = pageBudgetPx(chunks.length, headerHpx, footerHpx);
-  }
-
-  for (let i = 0; i < units.length; i++) {
-    const u = units[i];
-
-    if (u.kind === 'row') {
-      const openCost = tableOpenOnPage ? 0 : u.theadHeight;
-      if (current.length > 0 && usedPx + openCost + u.height > budget) closePage();
-      if (!tableOpenOnPage) {
-        current.push(`<table class="md-table">${u.theadHtml}<tbody>`);
-        usedPx += u.theadHeight;
-        tableOpenOnPage = true;
-      }
-      current.push(u.html);
-      usedPx += u.height;
-      continue;
-    }
-
-    if (tableOpenOnPage) {
-      current.push('</tbody></table>');
-      tableOpenOnPage = false;
-    }
-
-    // Orphan guard: don't strand a heading alone (or near-alone) at the
-    // bottom of a page with nothing of what follows it — require a little
-    // of the next unit to fit alongside it, else push the heading forward too.
-    let lookahead = 0;
-    const next = units[i + 1];
-    if (u.isHeading && next) {
-      lookahead = next.kind === 'row' ? next.theadHeight + next.height : Math.min(next.height, 60);
-    }
-    if (current.length > 0 && usedPx + u.height + lookahead > budget) closePage();
-    current.push(u.html);
-    usedPx += u.height;
-  }
-  if (tableOpenOnPage) current.push('</tbody></table>');
-  chunks.push(current);
-
-  return chunks.map((blockList, idx) => {
+  return paginateHTML(renderMarkdown(markdown), headerHTML, footerHTML, idx => {
     const eff = effectiveSettingsForPage(idx);
-    const [pw, ph] = paperDims(eff.paperSize, eff.paperW, eff.paperH, eff.orientation);
-    const isFirst = idx === 0;
-    const isLast = idx === chunks.length - 1;
-    const html = (isFirst ? headerHTML : '') + blockList.join('\n') + (isLast ? footerHTML : '');
-    return {
-      html, widthCm: pw, heightCm: ph,
-      marginTop: eff.marginTop, marginRight: eff.marginRight, marginBottom: eff.marginBottom, marginLeft: eff.marginLeft,
-    };
-  });
+    const [widthCm, heightCm] = paperDims(eff.paperSize, eff.paperW, eff.paperH, eff.orientation);
+    return { ...eff, widthCm, heightCm };
+  }, `font-family:${state.fontFamily};font-size:${state.fontSizePt}pt;`, state.columnWidths);
 }
 
 // ---------- header/infobar/footer templates ----------
@@ -282,7 +166,7 @@ function tokenIconSvg() {
 
 function headerHtml() {
   return `<div class="doc-header">
-    <div class="doc-logo"><img src="/assets/logo-auto-audit.png" width="88" height="36" alt="auto audit"></div>
+    <div class="doc-logo"><img src="${state.logoUrl || '/assets/logo-auto-audit.png'}" width="${state.logoSize[0]}" height="${state.logoSize[1]}" style="width:${state.logoSize[0]}px;height:${state.logoSize[1]}px" alt="Logo dokumen"></div>
     <div class="doc-title-block">
       <p class="doc-title">${escapeText(state.title)}</p>
       <div class="doc-generated">Generated on: ${formatGenerated(state.generatedAt)}</div>
@@ -308,6 +192,7 @@ function infoBarHtml(tokens) {
 }
 
 function footerHtml() {
+  if (!state.footerEnabled) return '';
   return `<div class="doc-footer">Laporan ini dibuat oleh Auto Audit AI &copy;${state.generatedAt.getFullYear()}</div>`;
 }
 
@@ -315,7 +200,11 @@ function footerHtml() {
 
 function render() {
   const words = countWords(state.markdown);
-  const tokens = state.modelId ? estimateTokens(words, state.modelId) : 0;
+  const automaticTokens = state.modelId ? estimateTokens(words, state.modelId) : 0;
+  const tokens = state.tokenOverride ?? automaticTokens;
+  if (document.activeElement !== $('f-tokens')) $('f-tokens').value = tokens;
+  $('token-mode').textContent = state.tokenOverride === null ? 'Otomatis dari isi dan model' : `Manual · estimasi otomatis: ${automaticTokens.toLocaleString('en-US')}`;
+  $('btn-auto-tokens').disabled = state.tokenOverride === null;
 
   const header = headerHtml() + infoBarHtml(tokens);
   const footer = footerHtml();
@@ -346,7 +235,17 @@ function render() {
     container.appendChild(sheet);
   });
 
+  installColumnResizers(container, state.columnWidths, scheduleColumnRender);
   renderPerPageOverridesUI(pages.length);
+}
+
+let columnRenderFrame = null;
+function scheduleColumnRender() {
+  if (columnRenderFrame !== null) return;
+  columnRenderFrame = requestAnimationFrame(() => {
+    columnRenderFrame = null;
+    render();
+  });
 }
 
 let renderTimer = null;
@@ -573,6 +472,62 @@ function initDateRangePicker() {
 // ---------- wiring ----------
 
 function bind() {
+  let logoUpload = 0;
+  $('f-footer-enabled').addEventListener('change', e => {
+    state.footerEnabled = e.target.checked;
+    render();
+  });
+  $('f-logo').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const version = ++logoUpload;
+    const url = URL.createObjectURL(file);
+    $('logo-status').textContent = 'Memuat logo...';
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      // Normalize uploads to a local PNG for reliable preview/PDF rendering.
+      const scale = Math.min(1, 1024 / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      const data = canvas.toDataURL('image/png');
+      if (version !== logoUpload) return;
+      state.logoUrl = data;
+      const fit = Math.min(88 / canvas.width, 52 / canvas.height);
+      state.logoSize = [canvas.width * fit, canvas.height * fit];
+      $('logo-status').textContent = file.name;
+      $('btn-reset-logo').disabled = false;
+      render();
+    } catch {
+      if (version === logoUpload) $('logo-status').textContent = 'Gambar tidak dapat dibaca. Pilih file gambar lain.';
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  });
+  $('btn-reset-logo').addEventListener('click', () => {
+    logoUpload++;
+    state.logoUrl = null;
+    state.logoSize = [88, 36];
+    $('f-logo').value = '';
+    $('logo-status').textContent = 'Logo bawaan · proporsi gambar tetap';
+    $('btn-reset-logo').disabled = true;
+    render();
+  });
+  commitOnEnter($('f-tokens'));
+  $('f-tokens').addEventListener('input', e => {
+    if (e.target.value === '') state.tokenOverride = null;
+    else if (e.target.validity.valid) state.tokenOverride = Number(e.target.value);
+    else return;
+    scheduleRender();
+  });
+  $('f-tokens').addEventListener('blur', scheduleRender);
+  $('btn-auto-tokens').addEventListener('click', () => {
+    state.tokenOverride = null;
+    render();
+  });
   $('f-title').value = state.title;
   $('f-generated').value = toLocalInputValue(state.generatedAt);
   $('f-markdown').value = state.markdown;
@@ -604,7 +559,7 @@ function bind() {
   });
   $('f-type-custom').addEventListener('input', (e) => { state.type = e.target.value; scheduleRender(); });
 
-  $('f-markdown').addEventListener('input', (e) => { state.markdown = e.target.value; scheduleRender(); });
+  $('f-markdown').addEventListener('input', (e) => { state.markdown = e.target.value; state.columnWidths = {}; scheduleRender(); });
 
   $('f-font').addEventListener('change', (e) => { state.fontFamily = e.target.value; scheduleRender(); });
   commitOnEnter($('f-font-size'));
@@ -673,6 +628,9 @@ async function exportPdf() {
   status.textContent = 'Menyiapkan PDF...';
 
   try {
+    clearTimeout(renderTimer);
+    await document.fonts.ready;
+    render();
     const { jsPDF } = window.jspdf;
     const sheets = Array.from(document.querySelectorAll('.page-sheet'));
     const filename = slugify(state.title) + '.pdf';
@@ -711,4 +669,5 @@ async function exportPdf() {
 
 bind();
 render();
+document.fonts.ready.then(scheduleRender);
 loadModels();

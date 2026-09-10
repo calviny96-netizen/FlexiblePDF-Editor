@@ -17,12 +17,22 @@
       <span class="sidebar-brand-mark">FX</span>
       <div>
         <div class="sidebar-brand-title">FlexiblePDF-Editor</div>
-        <div class="sidebar-brand-sub">Realtime report generator</div>
+        <div class="sidebar-brand-sub">Realtime report generator · V2.0</div>
       </div>
     </div>
 
     <section class="panel">
       <h2>Document Info</h2>
+      <label class="field"><span>Logo dokumen</span>
+        <input id="f-logo" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
+      </label>
+      <div class="token-controls"><small id="logo-status" role="status">Logo bawaan · proporsi gambar tetap</small>
+        <button id="btn-reset-logo" type="button" disabled>Logo bawaan</button>
+      </div>
+      <label class="checkbox-field">
+        <input id="f-footer-enabled" type="checkbox">
+        <span>Tampilkan footer “Laporan ini dibuat oleh Auto Audit AI”</span>
+      </label>
       <label class="field">
         <span>Judul Dokumen</span>
         <input type="text" id="f-title" value="Demo Auto Audit - Devina - Sales">
@@ -66,6 +76,12 @@
         </select>
       </label>
       <input type="text" id="f-type-custom" class="field-inline" placeholder="Tulis type..." hidden>
+      <label class="field"><span>Tokens</span>
+        <input id="f-tokens" type="number" min="0" step="1" aria-describedby="token-mode">
+      </label>
+      <div class="token-controls"><small id="token-mode">Otomatis dari isi dan model</small>
+        <button id="btn-auto-tokens" type="button">Gunakan otomatis</button>
+      </div>
     </section>
 
     <section class="panel">
@@ -164,7 +180,8 @@
   </aside>
 
   <main class="preview-area">
-    <div id="pages"></div>
+    <p class="table-edit-hint">↔ Geser garis biru di batas kolom tabel untuk mengatur lebarnya. Klik dua kali untuk reset.</p>
+      <div id="pages"></div>
   </main>
 </div>
 
