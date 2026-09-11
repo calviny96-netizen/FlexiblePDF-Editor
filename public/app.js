@@ -1,3 +1,4 @@
+import { maxTableColumns } from './content.js';
 import { paginateHTML, installColumnResizers } from './pagination.js';
 import { renderMarkdown, countWords } from './markdown.js';
 import {
@@ -61,6 +62,8 @@ const state = {
   paperW: 21,
   paperH: 29.7,
   orientation: 'portrait',
+  autoOrientation: true,
+  detectedColumns: 0,
   marginTop: 1.5,
   marginRight: 1.5,
   marginBottom: 1.5,
@@ -140,8 +143,14 @@ function effectiveSettingsForPage(idx) {
     marginBottom: state.marginBottom, marginLeft: state.marginLeft,
   };
   const ov = state.pageOverrides[idx];
-  if (ov && ov.enabled) return { ...base, ...ov };
-  return base;
+  const effective = ov && ov.enabled ? { ...base, ...ov } : base;
+  if (state.autoOrientation && state.detectedColumns >= 12) {
+    effective.orientation = 'landscape';
+    if (effective.paperSize === 'Custom' && effective.paperW < effective.paperH) {
+      [effective.paperW, effective.paperH] = [effective.paperH, effective.paperW];
+    }
+  }
+  return effective;
 }
 
 // ---------- automatic pagination ----------
@@ -151,7 +160,15 @@ function effectiveSettingsForPage(idx) {
 // then whatever's left flows onto page 1 with *its own* budget, and so on.
 
 function paginateContent(markdown, headerHTML, footerHTML) {
-  return paginateHTML(renderMarkdown(markdown), headerHTML, footerHTML, idx => {
+  const html = renderMarkdown(markdown);
+  state.detectedColumns = maxTableColumns(html);
+  const autoLandscape = state.autoOrientation && state.detectedColumns >= 12;
+  $('orientation-status').textContent = autoLandscape ? `${state.detectedColumns} kolom terdeteksi · landscape otomatis` : '';
+  document.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.orientation === (autoLandscape ? 'landscape' : state.orientation));
+    btn.disabled = autoLandscape;
+  });
+  return paginateHTML(html, headerHTML, footerHTML, idx => {
     const eff = effectiveSettingsForPage(idx);
     const [widthCm, heightCm] = paperDims(eff.paperSize, eff.paperW, eff.paperH, eff.orientation);
     return { ...eff, widthCm, heightCm };
@@ -472,6 +489,10 @@ function initDateRangePicker() {
 // ---------- wiring ----------
 
 function bind() {
+  $('f-auto-orientation').addEventListener('change', e => {
+    state.autoOrientation = e.target.checked;
+    render();
+  });
   let logoUpload = 0;
   $('f-footer-enabled').addEventListener('change', e => {
     state.footerEnabled = e.target.checked;

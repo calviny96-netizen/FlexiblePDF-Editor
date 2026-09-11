@@ -387,3 +387,11 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
 /* A fixed logo box stabilizes pagination; contain preserves square/wide ratios. */
 .doc-body .doc-logo img { width: 88px; height: 52px; object-fit: contain; object-position: left center; margin: 0; max-width: 100%; }
 .doc-logo { flex: 0 0 88px; min-height: 52px; margin-right: 16px; }
+
+/* Pasted documents flow inside each sheet, isolated from the editor chrome. */
+.doc-body .report-import { display: flow-root; width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+.doc-body .report-import > .page { width: 100% !important; max-width: 100% !important; margin: 0 !important; box-shadow: none !important; }
+[data-flow-container] { display: flow-root; }
+.overflow-slice { break-inside: avoid; }
+
+.preview-area { flex-direction: column; justify-content: flex-start; }

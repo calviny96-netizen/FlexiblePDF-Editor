@@ -80,6 +80,9 @@ function renderTable(headerLine, sepLine, bodyLines) {
 }
 
 export function renderMarkdown(source) {
+  // A pasted full document already has HTML structure; treating its head and
+  // body as Markdown paragraphs corrupts both CSS and the page wrapper.
+  if (/^\s*(?:<!doctype\s+html\b|<html\b)/i.test(source || '')) return source;
   const lines = (source || '').replace(/\r\n/g, '\n').split('\n');
   const out = [];
   let i = 0;
@@ -204,7 +207,8 @@ export function renderMarkdown(source) {
 
 export function countWords(source) {
   const plain = (source || '')
-    .replace(/<!--page-->/gi, ' ')
+    .replace(/<(style|script|head)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[^]*?-->/g, ' ')
     .replace(/<[^>]+>/g, ' ') // strip raw HTML/SVG tags (and their attributes) before counting
     .replace(/[#*_`>|-]/g, ' ')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')

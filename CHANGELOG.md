@@ -1,5 +1,13 @@
 # Changelog
 
+## FlexiblePDF-Editor V2.1
+
+- Fix full HTML report imports: isolate document styles and paginate nested wrappers without shrinking the entire report.
+- Keep chart cards and their headings together when they fit a page; continue oversized content vertically at readable width.
+- Automatically use landscape for tables with 12 or more logical columns, including colspan/rowspan and custom paper sizes.
+- Fix imported table row grouping so striped row styles survive pagination.
+- Add regressions for full HTML reports, chart widths, style isolation, and automatic orientation thresholds.
+
 ## FlexiblePDF-Editor V2.0
 
 - Fix table pagination using actual destination-page layout; preserve table styles, columns and repeated headers.

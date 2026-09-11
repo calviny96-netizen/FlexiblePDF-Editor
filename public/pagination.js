@@ -1,12 +1,12 @@
+import { prepareContent, tableColumnCount } from './content.js';
+
 // Measure the exact DOM that will be displayed, including styles, columns,
 // repeated table headers, margins and the destination page's width.
 export function paginateHTML(html, header, footer, settings, fontStyle, columnWidths) {
-  const source = document.createElement('div');
-  source.innerHTML = html;
+  const { source, css } = prepareContent(html);
   source.querySelectorAll('table').forEach((table, id) => {
     table.dataset.tableId = id;
-    const count = Math.max(0, ...Array.from(table.rows, row =>
-      Array.from(row.cells).reduce((n, cell) => n + cell.colSpan, 0)));
+    const count = tableColumnCount(table);
     if (!count) return;
     const existing = Array.from(table.querySelectorAll(':scope > colgroup > col'));
     let weights = columnWidths[id];
@@ -36,98 +36,193 @@ export function paginateHTML(html, header, footer, settings, fontStyle, columnWi
   root.style.cssText = `${fontStyle}position:absolute;left:-99999px;top:0;visibility:hidden;`;
   document.body.append(root);
   const pages = [];
-  let content, tail, spec, hasContent;
+  let content, tail, spec, hasContent, parents, pendingHeading;
   function startPage() {
     spec = settings(pages.length);
     root.style.width = `${spec.widthCm - spec.marginLeft - spec.marginRight}cm`;
     root.innerHTML = pages.length === 0 ? header : '';
+    if (css) { const style = document.createElement('style'); style.textContent = css; root.prepend(style); }
+    parents = new Map();
     content = document.createElement('div');
     content.className = 'page-content';
     tail = document.createElement('div');
     tail.innerHTML = footer;
     root.append(content, tail);
     hasContent = false;
+    pendingHeading = null;
   }
   function fits() {
     return root.getBoundingClientRect().height <=
       (spec.heightCm - spec.marginTop - spec.marginBottom) * 96 / 2.54 - 2;
   }
   function finishPage() {
+    const carry = pendingHeading?.node.isConnected ? pendingHeading : null;
+    if (carry) carry.node.remove();
+    removeEmptyParents();
     tail.remove();
     pages.push({ ...spec, html: root.innerHTML });
     startPage();
+    if (carry) {
+      parentFor(carry.path).append(carry.node);
+      hasContent = true;
+    }
   }
-  // An indivisible block (e.g. one unusually tall row or an SVG) must still
-  // remain visible. Fit it proportionally only when it exceeds an empty page.
-  function fitOversized(node) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'oversized-content';
-    node.replaceWith(wrapper);
-    wrapper.append(node);
-    const width = content.getBoundingClientRect().width;
+  function parentFor(path) {
+    let parent = content;
+    for (const original of path) {
+      let clone = parents.get(original);
+      if (!clone || !clone.isConnected) {
+        clone = original.cloneNode(false);
+        clone.dataset.flowContainer = '';
+        // A document's screen-only max-width/height/overflow must not box an
+        // entire report into one printed page.
+        clone.style.setProperty('width', '100%', 'important');
+        clone.style.setProperty('max-width', '100%', 'important');
+        clone.style.setProperty('min-width', '0', 'important');
+        clone.style.setProperty('height', 'auto', 'important');
+        clone.style.setProperty('max-height', 'none', 'important');
+        clone.style.setProperty('overflow', 'visible', 'important');
+        parent.append(clone);
+        parents.set(original, clone);
+      }
+      parent = clone;
+    }
+    return parent;
+  }
+  function removeEmptyParents() {
+    for (const clone of [...parents.values()].reverse()) {
+      if (!clone.textContent.trim() && !clone.querySelector('svg,img,table,hr')) clone.remove();
+    }
+  }
+  // Truly indivisible content continues as full-width vertical slices. Never
+  // shrink a whole report to fit the remaining height of a single page.
+  let sliceId = 0;
+  function continueOversized(node, path) {
+    const width = node.getBoundingClientRect().width;
     node.style.width = `${width}px`;
+    node.style.maxWidth = 'none';
+    node.style.margin = '0';
     const height = node.getBoundingClientRect().height;
-    const available = (spec.heightCm - spec.marginTop - spec.marginBottom) * 96 / 2.54
-      - root.getBoundingClientRect().height + height - 4;
-    const scale = Math.min(1, Math.max(1, available) / Math.max(1, height));
-    wrapper.style.height = `${height * scale}px`;
-    node.style.transformOrigin = 'top left';
-    node.style.transform = `scale(${scale})`;
+    node.remove();
+    let offset = 0, index = 0;
+    const id = sliceId++;
+    while (offset < height - .1) {
+      const parent = parentFor(path);
+      const wrapper = document.createElement('div');
+      wrapper.className = 'overflow-slice';
+      wrapper.dataset.sliceId = id;
+      wrapper.dataset.sliceIndex = index++;
+      wrapper.style.cssText = 'position:relative;overflow:hidden;width:100%;height:0;';
+      parent.append(wrapper);
+      const scale = Math.min(1, parent.getBoundingClientRect().width / Math.max(1, width));
+      const available = Math.max(1, (spec.heightCm - spec.marginTop - spec.marginBottom) * 96 / 2.54
+        - root.getBoundingClientRect().height - 4);
+      const sliceHeight = Math.min(height - offset, available / scale);
+      wrapper.style.height = `${sliceHeight * scale}px`;
+      wrapper.dataset.sliceStart = offset;
+      wrapper.dataset.sliceEnd = offset + sliceHeight;
+      const copy = node.cloneNode(true);
+      copy.style.position = 'absolute';
+      copy.style.top = `${-offset * scale}px`;
+      copy.style.left = '0';
+      copy.style.transformOrigin = 'top left';
+      if (scale < 1) copy.style.transform = `scale(${scale})`;
+      wrapper.append(copy);
+      offset += sliceHeight;
+      hasContent = true;
+      if (offset < height - .1) finishPage();
+    }
   }
-  function appendBlock(node) {
-    content.append(node);
+  function appendBlock(original, path = []) {
+    if (original.nodeType === Node.COMMENT_NODE || !original.textContent.trim() && original.nodeType === Node.TEXT_NODE) return;
+    const node = original.cloneNode(true);
+    parentFor(path).append(node);
+    if (node.nodeType !== Node.ELEMENT_NODE) { hasContent = true; return; }
+    const display = getComputedStyle(node).display;
+    const flow = /^(DIV|MAIN|ARTICLE|SECTION|ASIDE|HEADER|FOOTER|UL|OL|BLOCKQUOTE)$/.test(node.tagName)
+      && !/flex|grid/.test(display) && node.children.length;
+    // Descend through report wrappers. Tables inside them must reach the row
+    // paginator, even when the wrapper itself fits on the current page.
+    const emptyPageHeight = (spec.heightCm - spec.marginTop - spec.marginBottom) * 96 / 2.54
+      - tail.getBoundingClientRect().height - 4;
+    if (flow && (node.querySelector('table') || node.getBoundingClientRect().height > emptyPageHeight)) {
+      node.remove();
+      for (const child of original.childNodes) process(child, [...path, original]);
+      return;
+    }
     if (!fits() && (hasContent || pages.length === 0)) {
       node.remove();
+      removeEmptyParents();
       finishPage();
-      content.append(node);
+      parentFor(path).append(node);
     }
-    if (!fits()) fitOversized(node);
+    if (!fits() && flow) {
+      node.remove();
+      for (const child of original.childNodes) process(child, [...path, original]);
+      return;
+    }
+    pendingHeading = /^H[1-6]$/.test(node.tagName) ? { node, path } : null;
+    if (!fits()) continueOversized(node, path);
     hasContent = true;
+  }
+  function appendTable(block, path) {
+    const rows = Array.from(block.tBodies).flatMap(body => Array.from(body.rows));
+    if (!rows.length) { appendBlock(block, path); return; }
+    let fragment = null;
+    function openTable() {
+      fragment = block.cloneNode(false);
+      for (const child of block.children) {
+        if (['COLGROUP', 'THEAD', 'CAPTION'].includes(child.tagName)) fragment.append(child.cloneNode(true));
+      }
+      parentFor(path).append(fragment);
+    }
+    for (let i = 0; i < rows.length;) {
+      let end = i + 1;
+      for (let j = i; j < end && j < rows.length; j++) {
+        for (const cell of rows[j].cells) {
+          const span = cell.rowSpan || rows[j].parentElement.rows.length - rows[j].sectionRowIndex;
+          end = Math.max(end, Math.min(rows.length, j + span));
+        }
+      }
+      const group = rows.slice(i, end);
+      if (!fragment) openTable();
+      let body = fragment.lastElementChild;
+      if (body?.tagName !== 'TBODY' || body.dataset.sourceBody !== String(Array.from(block.tBodies).indexOf(group[0].parentElement))) {
+        body = group[0].parentElement.cloneNode(false);
+        body.dataset.sourceBody = Array.from(block.tBodies).indexOf(group[0].parentElement);
+        fragment.append(body);
+      }
+      const clones = group.map(row => row.cloneNode(true));
+      body.append(...clones);
+      if (!fits()) {
+        clones.forEach(row => row.remove());
+        if (!body.children.length) body.remove();
+        if (!fragment.querySelector('tbody')) fragment.remove();
+        if (hasContent || pages.length === 0) { removeEmptyParents(); finishPage(); }
+        openTable();
+        body = group[0].parentElement.cloneNode(false);
+        body.dataset.sourceBody = Array.from(block.tBodies).indexOf(group[0].parentElement);
+        body.append(...clones);
+        fragment.append(body);
+        if (!fits()) { continueOversized(fragment, path); fragment = null; }
+      }
+      hasContent = true;
+      pendingHeading = null;
+      i = end;
+    }
+    if (block.tFoot) {
+      const table = block.cloneNode(false);
+      table.append(block.querySelector('colgroup').cloneNode(true), block.tFoot.cloneNode(true));
+      appendBlock(table, path);
+    }
+  }
+  function process(block, path = []) {
+    if (block.nodeName === 'TABLE') appendTable(block, path);
+    else appendBlock(block, path);
   }
   try {
     startPage();
-    for (const block of Array.from(source.children)) {
-      const rows = block.tagName === 'TABLE' ? Array.from(block.tBodies).flatMap(body => Array.from(body.rows)) : [];
-      if (!rows.length) { appendBlock(block.cloneNode(true)); continue; }
-      let fragment = null, body = null;
-      function openTable() {
-        fragment = block.cloneNode(false);
-        for (const child of block.children) {
-          if (['COLGROUP', 'THEAD', 'CAPTION'].includes(child.tagName)) fragment.append(child.cloneNode(true));
-        }
-        content.append(fragment);
-      }
-      for (let i = 0; i < rows.length;) {
-        // Keep rows linked by rowspan together; never break a spanning cell.
-        let end = i + 1;
-        for (let j = i; j < end && j < rows.length; j++) {
-          for (const cell of rows[j].cells) {
-            const span = cell.rowSpan || rows[j].parentElement.rows.length - rows[j].sectionRowIndex;
-            end = Math.max(end, Math.min(rows.length, j + span));
-          }
-        }
-        const group = rows.slice(i, end);
-        if (!fragment) openTable();
-        body = group[0].parentElement.cloneNode(false);
-        group.forEach(row => body.append(row.cloneNode(true)));
-        fragment.append(body);
-        if (!fits()) {
-          body.remove();
-          if (!fragment.querySelector('tbody')) fragment.remove();
-          if (hasContent || pages.length === 0) finishPage();
-          openTable();
-          fragment.append(body);
-          if (!fits()) { fitOversized(fragment); fragment = null; }
-        }
-        hasContent = true;
-        i = end;
-      }
-      if (block.tFoot) appendBlock((() => {
-        const table = block.cloneNode(false);
-        table.append(block.querySelector('colgroup').cloneNode(true), block.tFoot.cloneNode(true));
-        return table;
-      })());
-    }
+    for (const block of source.childNodes) process(block);
     pages.push({ ...spec, html: root.innerHTML });
     return pages;
   } finally { root.remove(); }
